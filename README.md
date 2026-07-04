@@ -1,15 +1,15 @@
-# 🛡️ Sistema de Avaliação de Risco de Crédito End-to-End
+# Sistema de Avaliação de Risco de Crédito End-to-End
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![XGBoost](https://img.shields.io/badge/XGBoost-111111?style=for-the-badge&logo=xgboost)](https://xgboost.readthedocs.io/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-20B2AA?style=for-the-badge&logo=xgboost&logoColor=white)](https://xgboost.readthedocs.io/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Google Cloud Run](https://img.shields.io/badge/Google_Cloud_Run-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white)](https://cloud.google.com/run)
 
-Este repositório contém uma solução corporativa completa para a predição e análise de risco de crédito. O projeto engloba desde a análise exploratória e tratamento de dados brutos até a esteira de deployment, expondo um modelo preditivo robusto baseado em **XGBoost** através de uma API de alta performance desenvolvida em **FastAPI**, empacotada com **Docker** e hospedada no **Google Cloud Run**.
+Este repositório contém uma solução completa para a predição e análise de risco de crédito. O projeto engloba desde a análise exploratória e tratamento de dados brutos até a esteira de deployment, expondo um modelo preditivo baseado em **XGBoost** através de uma API de alta performance desenvolvida em **FastAPI**, empacotada com **Docker** e hospedada no **Google Cloud Run**.
 
 ---
 
-## 💼 1. O Problema de Negócio
+## 1. O Problema de Negócio
 
 No setor financeiro, a concessão de crédito é uma das principais fontes de receita, mas também carrega o maior risco operacional: a **inadimplência (default)**. Liberar crédito para clientes com alto potencial de calote gera prejuízos diretos ao caixa da instituição, enquanto negar crédito para bons pagadores resulta em perda de receita e custo de oportunidade.
 
@@ -19,7 +19,7 @@ No setor financeiro, a concessão de crédito é uma das principais fontes de re
 
 ---
 
-## 📊 2. Os Dados & Dicionário de Variáveis
+## 2. Os Dados & Dicionário de Variáveis
 
 O conjunto de dados original conta com **32.581 linhas** e **12 colunas**, representando o histórico de solicitações de crédito de uma instituição financeira. Os dados brutos foram extraídos publicamente da plataforma Kaggle através do link: [Credit Risk Dataset](https://www.kaggle.com/datasets/laotse/credit-risk-dataset/data).
 
@@ -41,7 +41,7 @@ O conjunto de dados original conta com **32.581 linhas** e **12 colunas**, repre
 
 ---
 
-## 🧪 3. Engenharia de Recursos & Escolha do Modelo
+## 3. Engenharia de Recursos & Escolha do Modelo
 
 ### Pré-Processamento e Pipeline
 Os dados brutos passaram por uma higienização rigorosa mapeada em um pipeline automatizado (`ColumnTransformer`):
@@ -54,7 +54,7 @@ O algoritmo **XGBoost (Extreme Gradient Boosting)** foi selecionado devido à su
 
 ---
 
-## 📈 4. Avaliação do Modelo (Evaluation & Métricas)
+## 4. Avaliação do Modelo (Evaluation & Métricas)
 
 O modelo foi validado utilizando uma base de teste correspondente a 20% do dataset original (6.515 registros), mantendo estritamente a proporção de classes da base de treino (estratificação).
 
@@ -75,9 +75,7 @@ Os resultados obtidos na base de testes foram:
 
 ---
 
-## ⚙️ 5. Arquitetura da Solução & Engenharia de Produção
-
-A esteira completa foi desenhada seguindo as melhores práticas de **Engenharia de Machine Learning (MLOps)**:
+## 5. Arquitetura da Solução & Engenharia de Produção
 
 - **Treinamento:** O modelo e todo o pipeline de pré-processamento (`ColumnTransformer`) foram exportados em conjunto, de forma serializada, em um único arquivo `.joblib`.
 
@@ -87,14 +85,14 @@ A esteira completa foi desenhada seguindo as melhores práticas de **Engenharia 
 
 - **Nuvem:** O deploy contínuo é realizado no **Google Cloud Run**, uma plataforma *serverless* totalmente gerenciada, capaz de escalar automaticamente conforme a demanda de requisições.
 
-- **Otimização de Deploy:** O arquivo `.gcloudignore` foi configurado estrategicamente para excluir o ambiente virtual local (`.venv`), com aproximadamente **741 MB**, reduzindo significativamente o contexto de build e proporcionando deploys mais rápidos e eficientes na nuvem.
+- **Otimização de Deploy:** O arquivo `.gcloudignore` foi configurado para excluir o ambiente virtual local (`.venv`), com aproximadamente **741 MB**, reduzindo significativamente o contexto de build e proporcionando deploys mais rápidos e eficientes na nuvem.
 
 ---
 
-## 🚀 6. Como Testar e Consumir a API (Produção)
+## 6. Como Testar e Consumir a API
 
 A API está implantada publicamente no Google Cloud Run e pode ser acessada diretamente através do link:
-👉 [Interface Interativa Swagger UI](https://credit-risk-api-545386638841.us-central1.run.app/docs)
+👉 [Credit Risk API](https://credit-risk-api-545386638841.us-central1.run.app/docs)
 
 ### Opção 1: Testando Direto pelo Navegador (Swagger UI)
 1. Acesse o link da API acima.
@@ -125,7 +123,9 @@ curl -X 'POST' \
   "cb_person_cred_hist_length": 4
 }'
 
-## 📮 7. Exemplos de Requisição e Resposta
+```
+
+## 7. Exemplos de Requisição e Resposta
 
 ### JSON de Entrada (Payload)
 
