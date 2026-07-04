@@ -54,23 +54,30 @@ O algoritmo **XGBoost (Extreme Gradient Boosting)** foi selecionado devido à su
 
 ---
 
-## 4. Estrutura de Treinamento & Ciclo do Modelo
+## 4. Estrutura de Treinamento & Dinâmica dos Pesos do Modelo
 
-Para garantir a capacidade de generalização do modelo e mitigar vazamento de dados (*data leakage*), o fluxo de modelagem seguiu divisões rígidas e isoladas:
+Para garantir a capacidade de generalização do modelo e mitigar o vazamento de dados (*data leakage*), o fluxo de modelagem seguiu uma esteira estatística rígida baseada no algoritmo **XGBoost (Extreme Gradient Boosting)**.
 
 ### Volumetria e Divisão dos Dados
 O dataset higienizado foi dividido utilizando o método holdout clássico na proporção **80/20** via Scikit-Learn:
 *   **Base de Treinamento ($X_{train}$):** 26.059 registros dedicados exclusivamente ao ajuste de pesos e aprendizado do modelo.
 *   **Base de Teste ($X_{test}$):** 6.515 registros totalmente isolados, utilizados apenas na validação final.
 
-> **Divisão Estratificada:** Como a base é desbalanceada (apenas 21,81% de casos de inadimplência), aplicou-se a técnica de **estratificação (`stratify=y`)** na quebra do dataset. Isso forçou o algoritmo a manter exatamente os mesmos 21,81% de proporção de calotes tanto no treino quanto no teste, evitando sub-representação estatística na validação.
+> **Divisão Estratificada:** Como a base é desbalanceada (apenas 21,81% de casos de inadimplência), aplicou-se a técnica de estratificação (`stratify=y`) na quebra do dataset. Isso forçou o algoritmo a manter exatamente os mesmos 21,81% de proporção de calotes tanto no treino quanto no teste, evitando sub-representação estatística na validação.
 
-### Engenharia Integrada com Pipeline Scikit-Learn
-Em vez de aplicar as transformações diretamente na base inteira (um erro comum que gera *data leakage*), foi construído um objeto `Pipeline` unificado contendo duas etapas sequenciais:
-1.  **`preprocessor` (`ColumnTransformer`):** Responsável por mapear as colunas por tipo de dado, imputar as medianas e normalizar/codificar as 11 variáveis originais, expandindo-as para a matriz esparsa de 26 inputs calculados.
-2.  **`classifier` (`XGBClassifier`):** O estimador do XGBoost propriamente dito, operando com o hiperparâmetro penalizador `scale_pos_weight=3` para ponderar a importância dos erros na classe minoritária.
+### Como os "Pesos" e o Treinamento Funcionam de Fato
+Diferente de modelos lineares que atribuem um peso fixo para cada variável, o XGBoost cria um comitê de centenas de árvores de decisão que aprendem de forma sequencial (Boosting). O cálculo e relevância dos dados funcionam sob três pilares:
 
-O comando `model.fit(X_train, y_train)` disparou todo o processamento de forma encapsulada. Ao final do ciclo, o pipeline inteiro foi serializado com a biblioteca `joblib`. É por esse motivo que a nossa API no FastAPI consegue receber dados completamente brutos do usuário e aplicar toda a transformação matemática idêntica ao treino antes de realizar o `predict`.
+1.  **Minimização Estatística de Resíduos:** O modelo começa criando uma árvore simples. A segunda árvore é treinada focado puramente em corrigir os erros (resíduos) da primeira árvore, a terceira foca em corrigir os erros da segunda, e assim sucessivamente.
+2.  **Ganho de Informação (*Gain*):** Os "pesos" de importância de cada variável (como renda ou histórico) são calculados dinamicamente com base no quanto cada quebra de nó reduz o erro global do modelo. Variáveis inconsistentes ou contraditórias anulam o ganho de informação, gerando penalizações pesadas na folha final.
+3.  **Função de Perda Penalizada (`scale_pos_weight=3`):** Para mitigar o desbalanceamento dos dados, a função de perda foi matematicamente alterada. O peso do erro para falsos negativos (aprovar um cliente inadimplente) foi multiplicado por 3. Isso introduz um viés conservador de proteção ao caixa da instituição financeira, tornando o modelo extremamente rigoroso e focado em segurança operacional.
+
+### Engenharia Integrada via Pipeline
+Todo esse comportamento foi encapsulado usando um objeto `Pipeline` unificado:
+1.  **`preprocessor` (`ColumnTransformer`):** Isole as transformações e aplica a mediana (`SimpleImputer`) e padronização (`StandardScaler`/`OneHotEncoder`) gerando as 26 features finais em tempo de execução.
+2.  **`classifier` (`XGBClassifier`):** O estimador processado.
+
+O comando `model.fit(X_train, y_train)` disparou essa esteira de forma limpa. O pipeline final foi serializado em produção via `joblib`, garantindo que a API FastAPI execute exatamente as mesmas transformações matemáticas do treino ao receber dados brutos em tempo real.
 
 ---
 
