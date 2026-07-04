@@ -1,0 +1,21 @@
+# Ambientes Virtuais
+.venv/
+venv/
+ENV/
+
+# Caches do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Dados (Opcional, mas recomendado se o CSV for muito grande)
+data/
+
+# Arquivos do VS Code
+.vscode/
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db

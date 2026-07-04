@@ -1,47 +1,55 @@
 from fastapi import FastAPI
-import joblib
-import pandas as pd
-from app.schemas import CreditRequest
+from fastapi.openapi.docs import get_swagger_ui_html
+from pydantic import BaseModel
+# ... (mantenha seus outros imports como joblib, pandas, etc.)
 
-# 1. Inicializar o FastAPI
+# 1. Configuração de metadados da API para melhorar o UX inicial
 app = FastAPI(
-    title="API de Análise de Risco de Crédito",
-    description="API interna para validação de crédito usando XGBoost",
-    version="1.0.0"
+    title="🛡️ Sistema de Análise de Risco de Crédito",
+    description="""
+    API corporativa para avaliação de propostas de crédito utilizando um modelo preditivo baseado em **XGBoost**.
+    
+    ### Como testar:
+    1. Abra o endpoint **POST `/predict`** abaixo.
+    2. Clique em **Try it out**.
+    3. Cole um dos cenários de teste documentados no repositório.
+    4. Avalie o retorno de risco (`LOW_RISK`, `HIGH_RISK`).
+    """,
+    version="1.0.0",
+    docs_url=None, # Desativamos a rota padrão para customizar o tema abaixo
+    redoc_url=None
 )
 
-# 2. Carregar o pipeline completo de ML (Roda apenas UMA vez no startup da API)
-MODEL_PATH = "models/credit_risk_model.joblib"
-model = joblib.load(MODEL_PATH)
+# Definindo tags para organizar os blocos visuais
+tags_metadata = [
+    {
+        "name": "Análise Preditiva",
+        "description": "Endpoints responsáveis por interagir com o modelo XGBoost e inferir o risco.",
+    },
+    {
+        "name": "Monitoramento",
+        "description": "Verificação de integridade e status do serviço (Healthcheck).",
+    }
+]
+app.openapi_tags = tags_metadata
 
-@app.get("/")
+# 2. Injetando uma folha de estilo customizada (Swagger Themes)
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=app.title + " - Swagger UI",
+        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+        # Usando um tema dark/moderno do Swagger disponível publicamente por CDN
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-themes@3.0.0/themes/3.x/theme-flattop.css",
+    )
+
+# 3. Organizando os seus Endpoints atuais com as novas Tags e descrições
+@app.get("/", tags=["Monitoramento"], summary="Verifica se a API está online")
 def home():
     return {"status": "API Online", "version": "1.0.0"}
 
-@app.post("/predict")
-def predict_credit(payload: CreditRequest):
-    # 3. Converte o payload do Pydantic para dicionário e depois para DataFrame
-    data = payload.model_dump()
-    df_input = pd.DataFrame([data])
-    
-    # 4. Calcular a probabilidade de inadimplência (Classe 1)
-    probabilities = model.predict_proba(df_input)[0]
-    default_prob = float(probabilities[1])
-    
-    # 5. Regra de Negócio: Se o risco for menor que 40%, está aprovado
-    threshold = 0.40
-    approved = default_prob < threshold
-    
-    # 6. Definir faixas de risco comerciais para o retorno
-    if default_prob < 0.15:
-        risk_grade = "LOW_RISK"
-    elif default_prob < 0.40:
-        risk_grade = "MEDIUM_RISK"
-    else:
-        risk_grade = "HIGH_RISK"
-
-    return {
-        "approved": approved,
-        "default_probability": round(default_prob, 4),
-        "risk_grade": risk_grade
-    }
+@app.post("/predict", tags=["Análise Preditiva"], summary="Executa a classificação de risco do cliente")
+def predict_credit(request: CreditRequest):
+    # ... (mantenha a lógica do seu modelo aqui)
+    pass
