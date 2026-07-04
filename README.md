@@ -45,7 +45,7 @@ O conjunto de dados original conta com **32.581 linhas** e **12 colunas**, repre
 
 ### Pré-Processamento e Pipeline
 Os dados brutos passaram por uma higienização rigorosa mapeada em um pipeline automatizado (`ColumnTransformer`):
-1.  **Tratamento de Outliers:** Foram eliminados registros com idades biologicamente irreais ($\ge 100$ anos) e tempos de emprego inconsistentes ($\ge 60$ anos).
+1.  **Tratamento de Outliers:** Foram eliminados registros com outiliers na idade biologica ($\ge 100$ anos) e tempos de emprego inconsistentes ($\ge 60$ anos).
 2.  **Imputação de Nulos:** Variáveis cruciais que continham dados faltantes — como tempo de emprego (**2,75% de nulos**) e taxa de juros (**9,56% de nulos**) — foram tratadas dinamicamente utilizando a **Mediana** (`SimpleImputer`), evitando vieses causados pela média em distribuições assimétricas.
 3.  **Padronização e Codificação:** As variáveis numéricas foram normalizadas com `StandardScaler` e as categóricas foram transformadas em variáveis binárias via `OneHotEncoder`, expandindo a matriz final de treinamento para **26 features estruturadas**.
 
@@ -54,14 +54,33 @@ O algoritmo **XGBoost (Extreme Gradient Boosting)** foi selecionado devido à su
 
 ---
 
-## 4. Avaliação do Modelo (Evaluation & Métricas)
+## 4. Estrutura de Treinamento & Ciclo do Modelo
 
-O modelo foi validado utilizando uma base de teste correspondente a 20% do dataset original (6.515 registros), mantendo estritamente a proporção de classes da base de treino (estratificação).
+Para garantir a capacidade de generalização do modelo e mitigar vazamento de dados (*data leakage*), o fluxo de modelagem seguiu divisões rígidas e isoladas:
 
-Os resultados obtidos na base de testes foram:
+### Volumetria e Divisão dos Dados
+O dataset higienizado foi dividido utilizando o método holdout clássico na proporção **80/20** via Scikit-Learn:
+*   **Base de Treinamento ($X_{train}$):** 26.059 registros dedicados exclusivamente ao ajuste de pesos e aprendizado do modelo.
+*   **Base de Teste ($X_{test}$):** 6.515 registros totalmente isolados, utilizados apenas na validação final.
 
-*   **Acurácia Geral:** 92%
-*   **ROC AUC Score:** 0.9481 
+> **Divisão Estratificada** Como a base é desbalanceada (apenas 21,81% de casos de inadimplência), aplicou-se a técnica de **estratificação (`stratify=y`)** na quebra do dataset[cite: 2]. Isso forçou o algoritmo a manter exatamente os mesmos 21,81% de proporção de calotes tanto no treino quanto no teste, evitando sub-representação estatística na validação[cite: 2].
+
+### Engenharia Integrada com Pipeline Scikit-Learn
+Em vez de aplicar as transformações diretamente na base inteira (um erro comum que gera *data leakage*), foi construído um objeto `Pipeline` unificado contendo duas etapas sequenciais[cite: 2]:
+1.  **`preprocessor` (`ColumnTransformer`):** Responsável por mapear as colunas por tipo de dado, imputar as medianas e normalizar/codificar as 11 variáveis originais, expandindo-as para a matriz esparsa de 26 inputs calculados[cite: 2].
+2.  **`classifier` (`XGBClassifier`):** O estimador do XGBoost propriamente dito, operando com o hiperparâmetro penalizador `scale_pos_weight=3` para ponderar a importância dos erros na classe minoritária[cite: 2].
+
+O comando `model.fit(X_train, y_train)` disparou todo o processamento de forma encapsulada[cite: 2]. Ao final do ciclo, o pipeline inteiro foi serializado com a biblioteca `joblib`[cite: 2]. É por esse motivo que a nossa API no FastAPI consegue receber dados completamente brutos do usuário e aplicar toda a transformação matemática idêntica ao treino antes de realizar o `predict`[cite: 2].
+
+---
+
+## 5. Avaliação do Modelo (Evaluation & Métricas)
+
+O modelo foi validado utilizando a base de teste correspondente aos 20% isolados (6.515 registros)[cite: 2].
+
+Os resultados obtidos na validação final foram:
+*   **Acurácia Geral:** 92%[cite: 2]
+*   **ROC AUC Score:** 0.9481 (Excelente capacidade de discriminação e separabilidade entre classes)[cite: 2]
 
 ### Relatório de Classificação Detalhado
 
@@ -70,12 +89,9 @@ Os resultados obtidos na base de testes foram:
 
   0 (Adimplente)   0.94      0.96      0.95      5094
 1 (Inadimplente)   0.85      0.79      0.82      1421
+```
 
-``` 
-
----
-
-## 5. Arquitetura da Solução & Engenharia de Produção
+## 6. Arquitetura da Solução & Engenharia de Produção
 
 - **Treinamento:** O modelo e todo o pipeline de pré-processamento (`ColumnTransformer`) foram exportados em conjunto, de forma serializada, em um único arquivo `.joblib`.
 
@@ -89,7 +105,7 @@ Os resultados obtidos na base de testes foram:
 
 ---
 
-## 6. Como Testar e Consumir a API
+## 7. Como Testar e Consumir a API
 
 A API está implantada publicamente no Google Cloud Run e pode ser acessada diretamente através do link:
 👉 [Credit Risk API](https://credit-risk-api-545386638841.us-central1.run.app/docs)
@@ -125,7 +141,7 @@ curl -X 'POST' \
 
 ```
 
-## 7. Exemplos de Requisição e Resposta
+## 8. Exemplos de Requisição e Resposta
 
 ### JSON de Entrada (Payload)
 
