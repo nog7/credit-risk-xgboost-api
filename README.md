@@ -165,8 +165,8 @@ curl -X 'POST' \
 
 ```json
 {
-  "prediction": 1,
-  "risk_status": "HIGH_RISK",
-  "inadimplencia_probability": 0.8847
+  "approved": false,
+  "default_probability": 0.9994,
+  "risk_grade": "HIGH_RISK"
 }
 ```
