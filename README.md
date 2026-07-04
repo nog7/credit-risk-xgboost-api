@@ -110,7 +110,7 @@ Os resultados obtidos na validação final foram:
 A API está implantada publicamente no Google Cloud Run e pode ser acessada diretamente através do link:
 👉 [Credit Risk API](https://credit-risk-api-545386638841.us-central1.run.app/docs)
 
-### Opção 1: Testando Direto pelo Navegador (Swagger UI)
+### Opção 1: Testando Direto pelo Navegador
 1. Acesse o link da API acima.
 2. Clique sobre o endpoint **`POST /predict`**.
 3. Clique no botão **Try it out** no canto superior direito do bloco.
