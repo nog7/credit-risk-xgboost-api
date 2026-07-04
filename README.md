@@ -98,6 +98,25 @@ Os resultados obtidos na validação final foram:
 1 (Inadimplente)   0.85      0.79      0.82      1421
 ```
 
+### Interpretabilidade do Modelo (XAI) & Feature Importance
+
+Para reduzir o efeito de **"caixa-preta"** característico de modelos baseados em árvores (*Gradient Boosting*), foi realizada uma análise de **Feature Importance** utilizando o critério de **Ganho Relativo (*Gain*)**. Essa métrica quantifica a contribuição de cada variável para a redução do erro do modelo ao longo de todas as divisões das árvores.
+
+Os três principais fatores que influenciam as decisões do modelo são:
+
+- **`person_home_ownership_RENT` (Moradia em Aluguel):**  
+  Representa a variável de maior importância, com peso superior a **12%**. O modelo identificou que clientes que residem em imóveis alugados apresentam, historicamente, maior vulnerabilidade financeira, tornando essa característica um dos principais indicadores de risco de inadimplência.
+
+- **`loan_percent_income` (Comprometimento da Renda):**  
+  Segunda variável mais relevante, com importância próxima de **10%**. Esse atributo mede a proporção da renda comprometida pelo empréstimo, evidenciando que o modelo prioriza a capacidade financeira do cliente em honrar a dívida sem comprometer excessivamente seu orçamento.
+
+- **`loan_grade_C` / `loan_grade_D` (Classificação Intermediária de Risco):**  
+  Essas categorias exercem forte influência nas decisões do algoritmo, funcionando como importantes indicadores estatísticos para o aumento da probabilidade de inadimplência.
+
+A hierarquia das variáveis demonstra que o modelo foi capaz de aprender **relações não lineares complexas**, priorizando aspectos estruturais da saúde financeira do cliente em vez de depender apenas de métricas isoladas. Essa análise aumenta a transparência do processo decisório e fornece evidências de que as previsões estão fundamentadas em fatores estatisticamente relevantes.
+
+![Feature importance](notebooks/feature_importance.png)
+
 ---
 
 

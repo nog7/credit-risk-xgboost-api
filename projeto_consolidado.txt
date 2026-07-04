@@ -1,0 +1,836 @@
+=========================================
+ARQUIVO: main.py
+=========================================
+import os
+import joblib
+import pandas as pd
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+# 1. Definição do Schema de Entrada (Pydantic)
+class CreditRequest(BaseModel):
+    person_age: int
+    person_income: int
+    person_home_ownership: str
+    person_emp_length: float
+    loan_intent: str
+    loan_grade: str
+    loan_amnt: int
+    loan_int_rate: float
+    loan_percent_income: float
+    cb_person_default_on_file: str
+    cb_person_cred_hist_length: int
+
+# 2. Inicialização do FastAPI (Versão Padrão Sem Firulas)
+app = FastAPI(
+    title="API de Análise de Risco de Crédito",
+    version="1.0.0"
+)
+
+# Mantemos o CORS ativo para o caso de você querer conectar qualquer coisa no futuro
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 3. Carregamento do Modelo e Scaler (.joblib com plano de contingência)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "credit_risk_model.joblib")
+
+model = None
+scaler = None
+features = None
+
+try:
+    loaded_data = joblib.load(MODEL_PATH)
+    
+    if isinstance(loaded_data, dict):
+        model = loaded_data.get("model")
+        scaler = loaded_data.get("scaler")
+        features = loaded_data.get("features")
+    else:
+        model = loaded_data
+except Exception as e:
+    print(f"Erro ao carregar o modelo: {e}")
+
+# 4. Endpoints
+@app.get("/")
+def home():
+    return {"status": "API Online", "version": "1.0.0"}
+
+@app.post("/predict")
+def predict_credit(request: CreditRequest):
+    # 1. Converte o request JSON para o DataFrame no formato esperado pelo pipeline
+    input_data = pd.DataFrame([request.dict()])
+    
+    # 2. Captura apenas a probabilidade de inadimplência (classe 1)
+    # predict_proba retorna uma matriz: [prob_classe_0, prob_classe_1]
+    prob_inadimplencia = model.predict_proba(input_data)[0][1]
+    
+    # 3. Aplica a Regra de Negócio Pessoal / Threshold Dinâmico
+    if prob_inadimplencia <= 0.45:
+        approved = True
+        risk_status = "LOW_RISK"
+        recommendation = "AUTOMATIC_APPROVAL"
+        
+    elif 0.45 < prob_inadimplencia <= 0.65:
+        approved = False  # Segura a aprovação automática por segurança
+        risk_status = "MODERATE_RISK"
+        recommendation = "MANUAL_REVISION_REQUIRED"  # Vai para a mesa de análise
+        
+    else:
+        approved = False
+        risk_status = "HIGH_RISK"
+        recommendation = "AUTOMATIC_REFUSAL"
+        
+    # 4. Retorna o novo contrato da API muito mais maduro
+    return {
+        "approved": approved,
+        "default_probability": round(float(prob_inadimplencia), 4),
+        "risk_grade": risk_status,
+        "action_required": recommendation
+    }
+
+
+
+=========================================
+ARQUIVO: schemas.py
+=========================================
+from pydantic import BaseModel, Field
+
+class CreditRequest(BaseModel):
+    person_age: int = Field(..., example=22)
+    person_income: float = Field(..., example=59000.0)
+    person_home_ownership: str = Field(..., example="RENT")
+    person_emp_length: float = Field(..., example=4.0)
+    loan_intent: str = Field(..., example="PERSONAL")
+    loan_grade: str = Field(..., example="D")
+    loan_amnt: float = Field(..., example=35000.0)
+    loan_int_rate: float = Field(..., example=16.02)
+    loan_percent_income: float = Field(..., example=0.59)
+    cb_person_default_on_file: str = Field(..., example="Y")
+    cb_person_cred_hist_length: int = Field(..., example=3)
+
+
+
+=========================================
+ARQUIVO: __init__.py
+=========================================
+
+
+
+=========================================
+ARQUIVO: credit_risk.ipynb
+=========================================
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "38d3dab8",
+   "metadata": {},
+   "source": [
+    "## 1. CARGA DOS DADOS"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8bef3a7d",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Formato do dataset original: (32581, 12)\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>person_age</th>\n",
+       "      <th>person_income</th>\n",
+       "      <th>person_home_ownership</th>\n",
+       "      <th>person_emp_length</th>\n",
+       "      <th>loan_intent</th>\n",
+       "      <th>loan_grade</th>\n",
+       "      <th>loan_amnt</th>\n",
+       "      <th>loan_int_rate</th>\n",
+       "      <th>loan_status</th>\n",
+       "      <th>loan_percent_income</th>\n",
+       "      <th>cb_person_default_on_file</th>\n",
+       "      <th>cb_person_cred_hist_length</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>22</td>\n",
+       "      <td>59000</td>\n",
+       "      <td>RENT</td>\n",
+       "      <td>123.0</td>\n",
+       "      <td>PERSONAL</td>\n",
+       "      <td>D</td>\n",
+       "      <td>35000</td>\n",
+       "      <td>16.02</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0.59</td>\n",
+       "      <td>Y</td>\n",
+       "      <td>3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>21</td>\n",
+       "      <td>9600</td>\n",
+       "      <td>OWN</td>\n",
+       "      <td>5.0</td>\n",
+       "      <td>EDUCATION</td>\n",
+       "      <td>B</td>\n",
+       "      <td>1000</td>\n",
+       "      <td>11.14</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0.10</td>\n",
+       "      <td>N</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>25</td>\n",
+       "      <td>9600</td>\n",
+       "      <td>MORTGAGE</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>MEDICAL</td>\n",
+       "      <td>C</td>\n",
+       "      <td>5500</td>\n",
+       "      <td>12.87</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0.57</td>\n",
+       "      <td>N</td>\n",
+       "      <td>3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>23</td>\n",
+       "      <td>65500</td>\n",
+       "      <td>RENT</td>\n",
+       "      <td>4.0</td>\n",
+       "      <td>MEDICAL</td>\n",
+       "      <td>C</td>\n",
+       "      <td>35000</td>\n",
+       "      <td>15.23</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0.53</td>\n",
+       "      <td>N</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>24</td>\n",
+       "      <td>54400</td>\n",
+       "      <td>RENT</td>\n",
+       "      <td>8.0</td>\n",
+       "      <td>MEDICAL</td>\n",
+       "      <td>C</td>\n",
+       "      <td>35000</td>\n",
+       "      <td>14.27</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0.55</td>\n",
+       "      <td>Y</td>\n",
+       "      <td>4</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   person_age  person_income person_home_ownership  person_emp_length  \\\n",
+       "0          22          59000                  RENT              123.0   \n",
+       "1          21           9600                   OWN                5.0   \n",
+       "2          25           9600              MORTGAGE                1.0   \n",
+       "3          23          65500                  RENT                4.0   \n",
+       "4          24          54400                  RENT                8.0   \n",
+       "\n",
+       "  loan_intent loan_grade  loan_amnt  loan_int_rate  loan_status  \\\n",
+       "0    PERSONAL          D      35000          16.02            1   \n",
+       "1   EDUCATION          B       1000          11.14            0   \n",
+       "2     MEDICAL          C       5500          12.87            1   \n",
+       "3     MEDICAL          C      35000          15.23            1   \n",
+       "4     MEDICAL          C      35000          14.27            1   \n",
+       "\n",
+       "   loan_percent_income cb_person_default_on_file  cb_person_cred_hist_length  \n",
+       "0                 0.59                         Y                           3  \n",
+       "1                 0.10                         N                           2  \n",
+       "2                 0.57                         N                           3  \n",
+       "3                 0.53                         N                           2  \n",
+       "4                 0.55                         Y                           4  "
+      ]
+     },
+     "execution_count": 2,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n",
+    "import seaborn as sns\n",
+    "\n",
+    "# Caminho absoluto do seu arquivo no Windows\n",
+    "path = r\"C:\\Users\\eulle\\OneDrive\\Documentos\\Projetos\\Credit Risk\\data\\credit_risk_dataset.csv\"\n",
+    "\n",
+    "# Carregar o dataset\n",
+    "df = pd.read_csv(path)\n",
+    "print(f\"Formato do dataset original: {df.shape}\")\n",
+    "df.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "7ac71c04",
+   "metadata": {},
+   "source": [
+    "## 2. TRATAMENTO DE OUTLIERS E MAPEAMENTO DE NULOS"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "5a28543c",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Formato após remoção de outliers drásticos: (32574, 12)\n",
+      "\n",
+      "--- Percentual de Dados Faltantes por Coluna ---\n",
+      "person_age                    0.000000\n",
+      "person_income                 0.000000\n",
+      "person_home_ownership         0.000000\n",
+      "person_emp_length             2.747590\n",
+      "loan_intent                   0.000000\n",
+      "loan_grade                    0.000000\n",
+      "loan_amnt                     0.000000\n",
+      "loan_int_rate                 9.562842\n",
+      "loan_status                   0.000000\n",
+      "loan_percent_income           0.000000\n",
+      "cb_person_default_on_file     0.000000\n",
+      "cb_person_cred_hist_length    0.000000\n",
+      "dtype: float64\n"
+     ]
+    }
+   ],
+   "source": [
+    "# 1. Filtrar idades realistas\n",
+    "df_cleaned = df[df['person_age'] < 100].copy()\n",
+    "\n",
+    "# 2. Filtrar tempo de emprego realista (mantendo os valores nulos por enquanto)\n",
+    "df_cleaned = df_cleaned[(df_cleaned['person_emp_length'] < 60) | (df_cleaned['person_emp_length'].isnull())]\n",
+    "print(f\"Formato após remoção de outliers drásticos: {df_cleaned.shape}\")\n",
+    "\n",
+    "# 3. Mapear o percentual de dados faltantes\n",
+    "print(\"\\n--- Percentual de Dados Faltantes por Coluna ---\")\n",
+    "print(df_cleaned.isnull().mean() * 100)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a6aef550",
+   "metadata": {},
+   "source": [
+    "## 3. DIVISÃO EM TREINO E TESTE"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "ae9788bb",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Tamanho do X_train: (26059, 11)\n",
+      "Tamanho do X_test: (6515, 11)\n",
+      "\n",
+      "Proporção de inadimplência no Treino:\n",
+      "loan_status\n",
+      "0    0.781803\n",
+      "1    0.218197\n",
+      "Name: proportion, dtype: float64\n"
+     ]
+    }
+   ],
+   "source": [
+    "from sklearn.model_selection import train_test_split\n",
+    "\n",
+    "# 1. Separar as variáveis explicativas (X) da variável alvo (y)\n",
+    "X = df_cleaned.drop(columns=['loan_status'])\n",
+    "y = df_cleaned['loan_status']\n",
+    "\n",
+    "# 2. Dividir em treino (80%) e teste (20%) garantindo a mesma proporção da variável alvo (stratify)\n",
+    "X_train, X_test, y_train, y_test = train_test_split(\n",
+    "    X, y, test_size=0.2, random_state=42, stratify=y\n",
+    ")\n",
+    "\n",
+    "print(f\"Tamanho do X_train: {X_train.shape}\")\n",
+    "print(f\"Tamanho do X_test: {X_test.shape}\")\n",
+    "print(f\"\\nProporção de inadimplência no Treino:\\n{y_train.value_counts(normalize=True)}\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "f47acb4b",
+   "metadata": {},
+   "source": [
+    "## 4. CONSTRUÇÃO DO PIPELINE DE PRÉ-PROCESSAMENTO"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "efb58b55",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Colunas numéricas: ['person_age', 'person_income', 'person_emp_length', 'loan_amnt', 'loan_int_rate', 'loan_percent_income', 'cb_person_cred_hist_length']\n",
+      "Colunas categóricas: ['person_home_ownership', 'loan_intent', 'loan_grade', 'cb_person_default_on_file']\n",
+      "\n",
+      "Formato do X_train após o pré-processamento: (26059, 26)\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "C:\\Users\\eulle\\AppData\\Local\\Temp\\ipykernel_20352\\2739248330.py:8: Pandas4Warning: For backward compatibility, 'str' dtypes are included by select_dtypes when 'object' dtype is specified. This behavior is deprecated and will be removed in a future version. Explicitly pass 'str' to `include` to select them, or to `exclude` to remove them and silence this warning.\n",
+      "See https://pandas.pydata.org/docs/user_guide/migration-3-strings.html#string-migration-select-dtypes for details on how to write code that works with pandas 2 and 3.\n",
+      "  cat_features = X_train.select_dtypes(include=['object']).columns.tolist()\n"
+     ]
+    }
+   ],
+   "source": [
+    "from sklearn.compose import ColumnTransformer\n",
+    "from sklearn.pipeline import Pipeline\n",
+    "from sklearn.impute import SimpleImputer\n",
+    "from sklearn.preprocessing import StandardScaler, OneHotEncoder\n",
+    "\n",
+    "# 1. Separar as colunas por tipo de dado\n",
+    "num_features = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()\n",
+    "cat_features = X_train.select_dtypes(include=['object']).columns.tolist()\n",
+    "\n",
+    "print(f\"Colunas numéricas: {num_features}\")\n",
+    "print(f\"Colunas categóricas: {cat_features}\")\n",
+    "\n",
+    "# 2. Criar o pipeline para os dados numéricos (Trata nulos + Escala os dados)\n",
+    "num_transformer = Pipeline(steps=[\n",
+    "    ('imputer', SimpleImputer(strategy='median')),\n",
+    "    ('scaler', StandardScaler())\n",
+    "])\n",
+    "\n",
+    "# 3. Criar o pipeline para os dados categóricos (Transforma texto em colunas binárias)\n",
+    "cat_transformer = Pipeline(steps=[\n",
+    "    ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))\n",
+    "])\n",
+    "\n",
+    "# 4. Juntar ambos os tratamentos mapeados por coluna\n",
+    "preprocessor = ColumnTransformer(transformers=[\n",
+    "    ('num', num_transformer, num_features),\n",
+    "    ('cat', cat_transformer, cat_features)\n",
+    "])\n",
+    "\n",
+    "# 5. Ajustar o pré-processador nos dados de treino e transformar para validar\n",
+    "X_train_processed = preprocessor.fit_transform(X_train)\n",
+    "print(f\"\\nFormato do X_train após o pré-processamento: {X_train_processed.shape}\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "767d92cc",
+   "metadata": {},
+   "source": [
+    "## 5. TREINAMENTO DO MODELO (XGBOOST)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "514559da",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Relatório de Classificação:\n",
+      "\n",
+      "              precision    recall  f1-score   support\n",
+      "\n",
+      "           0       0.94      0.96      0.95      5094\n",
+      "           1       0.85      0.79      0.82      1421\n",
+      "\n",
+      "    accuracy                           0.92      6515\n",
+      "   macro avg       0.90      0.87      0.88      6515\n",
+      "weighted avg       0.92      0.92      0.92      6515\n",
+      "\n",
+      "ROC AUC Score: 0.9481\n"
+     ]
+    }
+   ],
+   "source": [
+    "from xgboost import XGBClassifier\n",
+    "from sklearn.metrics import classification_report, roc_auc_score\n",
+    "\n",
+    "# 1. Definir o pipeline final (Pré-processamento + Modelo)\n",
+    "# Usaremos 'scale_pos_weight' para ajudar o modelo a lidar com o desbalanceamento das classes\n",
+    "model = Pipeline(steps=[\n",
+    "    ('preprocessor', preprocessor),\n",
+    "    ('classifier', XGBClassifier(random_state=42, scale_pos_weight=3))\n",
+    "])\n",
+    "\n",
+    "# 2. Treinar o modelo\n",
+    "model.fit(X_train, y_train)\n",
+    "\n",
+    "# 3. Fazer previsões no teste\n",
+    "y_pred = model.predict(X_test)\n",
+    "y_prob = model.predict_proba(X_test)[:, 1]\n",
+    "\n",
+    "# 4. Avaliação\n",
+    "print(\"Relatório de Classificação:\\n\")\n",
+    "print(classification_report(y_test, y_pred))\n",
+    "print(f\"ROC AUC Score: {roc_auc_score(y_test, y_prob):.4f}\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "3d5f4fda",
+   "metadata": {},
+   "source": [
+    "## 6. EXPORTAÇÃO DO MODELO TREINADO"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "3a368281",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Sucesso! O pipeline completo foi salvo em: models/credit_risk_model.joblib\n"
+     ]
+    }
+   ],
+   "source": [
+    "import joblib\n",
+    "import os\n",
+    "\n",
+    "# 1. Criar a pasta 'models' se ela não existir\n",
+    "os.makedirs('models', exist_ok=True)\n",
+    "\n",
+    "# 2. Salvar o pipeline completo (Pré-processador + XGBoost) em um arquivo\n",
+    "model_path = 'models/credit_risk_model.joblib'\n",
+    "joblib.dump(model, model_path)\n",
+    "\n",
+    "print(f\"Sucesso! O pipeline completo foi salvo em: {model_path}\")"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": ".venv (3.14.2.final.0)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.14.2"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
+
+
+
+=========================================
+ARQUIVO: Dockerfile
+=========================================
+FROM python:3.11-slim
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY ./app ./app
+COPY ./models ./models
+EXPOSE 8080
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+
+
+=========================================
+ARQUIVO: README.md
+=========================================
+# Sistema de Avaliação de Risco de Crédito End-to-End
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-20B2AA?style=for-the-badge&logo=xgboost&logoColor=white)](https://xgboost.readthedocs.io/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Google Cloud Run](https://img.shields.io/badge/Google_Cloud_Run-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white)](https://cloud.google.com/run)
+
+Este repositório contém uma solução completa para a predição e análise de risco de crédito. O projeto engloba desde a análise exploratória e tratamento de dados brutos até a esteira de deployment, expondo um modelo preditivo baseado em **XGBoost** através de uma API de alta performance desenvolvida em **FastAPI**, empacotada com **Docker** e hospedada no **Google Cloud Run**.
+
+---
+
+## 1. O Problema de Negócio
+
+No setor financeiro, a concessão de crédito é uma das principais fontes de receita, mas também carrega o maior risco operacional: a **inadimplência (default)**. Liberar crédito para clientes com alto potencial de calote gera prejuízos diretos ao caixa da instituição, enquanto negar crédito para bons pagadores resulta em perda de receita e custo de oportunidade.
+
+**Objetivo do Projeto:** Desenvolver um sistema automatizado capaz de receber dados cadastrais e financeiros de uma proposta de empréstimo em tempo real e classificar o cliente entre:
+*   `LOW_RISK` (Baixo Risco / Crédito Recomendado)
+*   `HIGH_RISK` (Alto Risco / Crédito Suspenso ou Sujeito à Análise Manual)
+
+---
+
+## 2. Os Dados & Dicionário de Variáveis
+
+O conjunto de dados original conta com **32.581 linhas** e **12 colunas**, representando o histórico de solicitações de crédito de uma instituição financeira. Os dados brutos foram extraídos publicamente da plataforma Kaggle através do link: [Credit Risk Dataset](https://www.kaggle.com/datasets/laotse/credit-risk-dataset/data).
+
+### Dicionário de Variáveis (Schema da API)
+
+| Campo | Tipo | Descrição | Exemplo |
+| :--- | :--- | :--- | :--- |
+| `person_age` | `int` | Idade do solicitante | `30` |
+| `person_income` | `int` | Renda anual do solicitante | `50000` |
+| `person_home_ownership` | `str` | Situação de moradia (`RENT`, `OWN`, `MORTGAGE`, `OTHER`) | `"RENT"` |
+| `person_emp_length` | `float` | Tempo de emprego atual em anos | `5.0` |
+| `loan_intent` | `str` | Objetivo do empréstimo (Ex: `PERSONAL`, `EDUCATION`, `MEDICAL`) | `"PERSONAL"` |
+| `loan_grade` | `str` | Nota de classificação de risco atribuída ao empréstimo (`A` a `G`) | `"A"` |
+| `loan_amnt` | `int` | Valor total do empréstimo solicitado | `10000` |
+| `loan_int_rate` | `float` | Taxa de juros aplicada ao empréstimo (%) | `11.5` |
+| `loan_percent_income` | `float` | Percentual da renda anual comprometida com o empréstimo (0 a 1) | `0.20` |
+| `cb_person_default_on_file` | `str` | Histórico de inadimplência registrado no histórico do cliente (`Y`/`N`) | `"N"` |
+| `cb_person_cred_hist_length`| `int` | Tempo de histórico de crédito ativo em anos | `3` |
+
+---
+
+## 3. Engenharia de Recursos & Escolha do Modelo
+
+### Pré-Processamento e Pipeline
+Os dados brutos passaram por uma higienização rigorosa mapeada em um pipeline automatizado (`ColumnTransformer`):
+1.  **Tratamento de Outliers:** Foram eliminados registros com outiliers na idade biologica ($\ge 100$ anos) e tempos de emprego inconsistentes ($\ge 60$ anos).
+2.  **Imputação de Nulos:** Variáveis cruciais que continham dados faltantes — como tempo de emprego (**2,75% de nulos**) e taxa de juros (**9,56% de nulos**) — foram tratadas dinamicamente utilizando a **Mediana** (`SimpleImputer`), evitando vieses causados pela média em distribuições assimétricas.
+3.  **Padronização e Codificação:** As variáveis numéricas foram normalizadas com `StandardScaler` e as categóricas foram transformadas em variáveis binárias via `OneHotEncoder`, expandindo a matriz final de treinamento para **26 features estruturadas**.
+
+### Por que escolher o XGBoost?
+O algoritmo **XGBoost (Extreme Gradient Boosting)** foi selecionado devido à sua performance superior no tratamento de dados tabulares não lineares, velocidade de processamento e robustez contra *overfitting*. Além disso, foi configurado o hiperparâmetro `scale_pos_weight=3` para compensar o desbalanceamento natural da base (onde apenas **21,81%** dos dados históricos pertenciam à classe de inadimplentes).
+
+---
+
+## 4. Estrutura de Treinamento & Dinâmica dos Pesos do Modelo
+
+Para garantir a capacidade de generalização do modelo e mitigar o vazamento de dados (*data leakage*), o fluxo de modelagem seguiu uma esteira estatística rígida baseada no algoritmo **XGBoost (Extreme Gradient Boosting)**.
+
+### Volumetria e Divisão dos Dados
+O dataset higienizado foi dividido utilizando o método holdout clássico na proporção **80/20** via Scikit-Learn:
+*   **Base de Treinamento ($X_{train}$):** 26.059 registros dedicados exclusivamente ao ajuste de pesos e aprendizado do modelo.
+*   **Base de Teste ($X_{test}$):** 6.515 registros totalmente isolados, utilizados apenas na validação final.
+
+> **Divisão Estratificada:** Como a base é desbalanceada (apenas 21,81% de casos de inadimplência), aplicou-se a técnica de estratificação (`stratify=y`) na quebra do dataset. Isso forçou o algoritmo a manter exatamente os mesmos 21,81% de proporção de calotes tanto no treino quanto no teste, evitando sub-representação estatística na validação.
+
+### Como os "Pesos" e o Treinamento Funcionam de Fato
+Diferente de modelos lineares que atribuem um peso fixo para cada variável, o XGBoost cria um comitê de centenas de árvores de decisão que aprendem de forma sequencial (Boosting). O cálculo e relevância dos dados funcionam sob três pilares:
+
+1.  **Minimização Estatística de Resíduos:** O modelo começa criando uma árvore simples. A segunda árvore é treinada focado puramente em corrigir os erros (resíduos) da primeira árvore, a terceira foca em corrigir os erros da segunda, e assim sucessivamente.
+2.  **Ganho de Informação (*Gain*):** Os "pesos" de importância de cada variável (como renda ou histórico) são calculados dinamicamente com base no quanto cada quebra de nó reduz o erro global do modelo. Variáveis inconsistentes ou contraditórias anulam o ganho de informação, gerando penalizações pesadas na folha final.
+3.  **Função de Perda Penalizada (`scale_pos_weight=3`):** Para mitigar o desbalanceamento dos dados, a função de perda foi matematicamente alterada. O peso do erro para falsos negativos (aprovar um cliente inadimplente) foi multiplicado por 3. Isso introduz um viés conservador de proteção ao caixa da instituição financeira, tornando o modelo extremamente rigoroso e focado em segurança operacional.
+
+### Engenharia Integrada via Pipeline
+Todo esse comportamento foi encapsulado usando um objeto `Pipeline` unificado:
+1.  **`preprocessor` (`ColumnTransformer`):** Isole as transformações e aplica a mediana (`SimpleImputer`) e padronização (`StandardScaler`/`OneHotEncoder`) gerando as 26 features finais em tempo de execução.
+2.  **`classifier` (`XGBClassifier`):** O estimador processado.
+
+O comando `model.fit(X_train, y_train)` disparou essa esteira de forma limpa. O pipeline final foi serializado em produção via `joblib`, garantindo que a API FastAPI execute exatamente as mesmas transformações matemáticas do treino ao receber dados brutos em tempo real.
+
+---
+
+## 5. Avaliação do Modelo (Evaluation & Métricas)
+
+O modelo foi validado utilizando a base de teste correspondente aos 20% isolados (6.515 registros).
+
+Os resultados obtidos na validação final foram:
+*   **Acurácia Geral:** 92%
+*   **ROC AUC Score:** 0.9481 (Excelente capacidade de discriminação e separabilidade entre classes)
+
+### Relatório de Classificação Detalhado
+
+```text
+              precision    recall  f1-score   support
+
+  0 (Adimplente)   0.94      0.96      0.95      5094
+1 (Inadimplente)   0.85      0.79      0.82      1421
+```
+
+---
+
+
+## 6. Testes de Estresse & Calibração de Threshold
+
+Para garantir que o modelo XGBoost aprendeu os padrões financeiros reais e mitigar o risco de *overfitting*, a aplicação foi submetida a cenários de estresse simulando fraudes, inconsistências severas e perfis de fronteira na zona de incerteza, além de um controle de aprovação ideal.
+
+### Resultados dos Cenários de Teste
+
+| Cenário Analisado | Perfil do Payload Enviado | Probabilidade de Calote | Ação do Sistema (Após Calibração) | Diagnóstico de Engenharia |
+| :--- | :--- | :---: | :---: | :--- |
+| **1. Lobo em Pele de Cordeiro** | Renda altíssima ($850k), casa própria, estabilidade, mas com restrição ativa (`default=Y`) e `Grade G`. | **93.96%** | RECUSA AUTOMÁTICA | **Padrão de Risco Confirmado.** O modelo isolou corretamente a renda alta e priorizou o histórico negativo e a nota de crédito. |
+| **2. Jovem Alavancado** | Cliente de 21 anos, nota boa (`Grade B`), histórico limpo, mas pedindo empréstimo maior que a renda anual (`comprometimento: 150%`). | **99.87%** | RECUSA AUTOMÁTICA | **Padrão de Risco Confirmado.** O algoritmo capturou com precisão o risco matemático crítico de superendividamento. |
+| **3. Perfil Fantasma (Fraude)** | Inconsistência temporal extrema: tempo de emprego e histórico de crédito incompatíveis com a idade. Renda baixa. | **99.29%** | RECUSA AUTOMÁTICA | **Padrão de Risco Confirmado.** O XGBoost identificou o ruído nas variáveis temporais combinadas ao baixo score original. |
+| **4. Trabalhador Silencioso** | Cliente jovem, renda modesta ($42k), mora de aluguel, mas com histórico impecável, estável e pedido pequeno (`comprometimento: 7%`). | **56.72%** | REVISÃO MANUAL | **Zona de Fronteira Mapeada.** O perfil equilibrado (baixo comprometimento vs. baixa renda/aluguel) acionou a esteira de auditoria humana por segurança. |
+| **5. Cliente Padrão Ouro** | Idade madura, excelente renda ($145k), imóvel financiado, zero restrições, nota máxima (`Grade A`) e baixo comprometimento ($8\%$). | **4.38%** | APROVAÇÃO AUTOMÁTICA | **Padrão Saudável Confirmado.** O algoritmo demonstra convergência e alta convicção para liberação de crédito limpo. |
+
+### Política de Decisão Baseada em Threshold Ponderado
+
+A modelagem de risco puramente estatística tende a ser conservadora devido à penalização aplicada no treinamento (`scale_pos_weight=3`)[cite: 1], o que desloca perfis saudáveis de baixa renda (como o **Cenário 4**) para zonas cinzentas de probabilidade. Manter um ponto de corte (*threshold*) fixo e binário em 50% causaria um severo custo de oportunidade para a instituição, rejeitando de forma automatizada clientes com bom comportamento de crédito.
+
+Para resolver essa limitação a solução foi desenhada para separar a **Previsão Estatística** (XGBoost) da **Regra de Decisão de Negócio** (camada da API). Implementou-se uma política de governança baseada em **Três Zonas de Risco**, otimizando a esteira de crédito:
+
+*   🟢 **Zona Verde (Aprovação Automática) \| $\le$ 45%:** Operações de altíssima segurança (ex: **Cenário 5** com 4.38%). O crédito é concedido instantaneamente sem fricção.
+*   🟡 **Zona Amarela (Mesa de Análise / Revisão) \| 45% a 65%:** Casos de fronteira onde há indicadores saudáveis misturados a dados marginais (ex: **Cenário 4** com 56.72%). A API suspende a automação e direciona o contrato para auditoria manual (`MANUAL_REVISION_REQUIRED`), salvando o cliente da recusa indevida.
+*   🔴 **Zona Vermelha (Recusa Automática) \| $>$ 65%:** Convicção estatística clara de inadimplência ativa ou fraude (ex: **Cenários 1, 2 e 3**). O sistema barra o avanço da proposta imediatamente para proteção de caixa.
+
+---
+
+## 7. Arquitetura da Solução & Engenharia de Produção
+
+- **Treinamento:** O modelo e todo o pipeline de pré-processamento (`ColumnTransformer`) foram exportados em conjunto, de forma serializada, em um único arquivo `.joblib`.
+
+- **Serviço:** Uma API REST foi construída utilizando **FastAPI**. A aplicação carrega automaticamente o arquivo `.joblib` na inicialização do servidor e disponibiliza predições com baixa latência, em milissegundos.
+
+- **Containers:** Toda a aplicação (código-fonte e dependências Python) foi isolada e empacotada por meio de um `Dockerfile`, garantindo portabilidade e consistência entre ambientes.
+
+- **Nuvem:** O deploy contínuo é realizado no **Google Cloud Run**, uma plataforma *serverless* totalmente gerenciada, capaz de escalar automaticamente conforme a demanda de requisições.
+
+- **Otimização de Deploy:** O arquivo `.gcloudignore` foi configurado para excluir o ambiente virtual local (`.venv`), com aproximadamente **741 MB**, reduzindo significativamente o contexto de build e proporcionando deploys mais rápidos e eficientes na nuvem.
+
+---
+
+## 8. Como Testar e Consumir a API
+
+A API está implantada publicamente no Google Cloud Run e pode ser acessada diretamente através do link:
+👉 [Credit Risk API](https://credit-risk-api-545386638841.us-central1.run.app/docs)
+
+### Opção 1: Testando Direto pelo Navegador
+1. Acesse o link da API acima.
+2. Clique sobre o endpoint **`POST /predict`**.
+3. Clique no botão **Try it out** no canto superior direito do bloco.
+4. Altere os valores do JSON de exemplo ou use o payload de teste abaixo.
+5. Clique no botão azul **Execute** e veja o retorno do modelo instantaneamente na seção *Response body*.
+
+### Opção 2: Consumindo a API via Terminal (cURL)
+Você pode disparar uma requisição de teste de qualquer terminal rodando o comando abaixo:
+
+```bash
+curl -X 'POST' \
+  '[https://credit-risk-api-545386638841.us-central1.run.app/predict](https://credit-risk-api-545386638841.us-central1.run.app/predict)' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "person_age": 24,
+  "person_income": 54400,
+  "person_home_ownership": "RENT",
+  "person_emp_length": 8.0,
+  "loan_intent": "MEDICAL",
+  "loan_grade": "C",
+  "loan_amnt": 35000,
+  "loan_int_rate": 14.27,
+  "loan_percent_income": 0.55,
+  "cb_person_default_on_file": "Y",
+  "cb_person_cred_hist_length": 4
+}'
+
+```
+
+## 9. Exemplos de Requisição e Resposta
+
+### JSON de Entrada (Payload)
+
+```json
+{
+  "person_age": 24,
+  "person_income": 54400,
+  "person_home_ownership": "RENT",
+  "person_emp_length": 8.0,
+  "loan_intent": "MEDICAL",
+  "loan_grade": "C",
+  "loan_amnt": 35000,
+  "loan_int_rate": 14.27,
+  "loan_percent_income": 0.55,
+  "cb_person_default_on_file": "Y",
+  "cb_person_cred_hist_length": 4
+}
+```
+
+### JSON de Retorno (Response)
+
+```json
+{
+  "approved": false,
+  "default_probability": 0.9994,
+  "risk_grade": "HIGH_RISK"
+}
+```
+
+
+
+=========================================
+ARQUIVO: requirements.txt
+=========================================
+fastapi
+pydantic
+uvicorn
+pandas
+scikit-learn
+xgboost
+joblib
+
+
+
