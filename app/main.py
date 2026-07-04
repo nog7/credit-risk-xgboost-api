@@ -61,37 +61,33 @@ def home():
 
 @app.post("/predict")
 def predict_credit(request: CreditRequest):
-    if model is None:
-        return {"error": "Modelo preditivo não carregado no servidor."}
-        
-    data_dict = request.model_dump()
-    df_input = pd.DataFrame([data_dict])
+    # 1. Converte o request JSON para o DataFrame no formato esperado pelo pipeline
+    input_data = pd.DataFrame([request.dict()])
     
-    if features is not None and scaler is not None:
-        df_encoded = pd.get_dummies(df_input)
-        for col in features:
-            if col not in df_encoded.columns:
-                df_encoded[col] = 0
-        df_encoded = df_encoded[features]
-        X_final = scaler.transform(df_encoded)
+    # 2. Captura apenas a probabilidade de inadimplência (classe 1)
+    # predict_proba retorna uma matriz: [prob_classe_0, prob_classe_1]
+    prob_inadimplencia = model.predict_proba(input_data)[0][1]
+    
+    # 3. Aplica a Regra de Negócio Pessoal / Threshold Dinâmico
+    if prob_inadimplencia <= 0.45:
+        approved = True
+        risk_status = "LOW_RISK"
+        recommendation = "AUTOMATIC_APPROVAL"
+        
+    elif 0.45 < prob_inadimplencia <= 0.65:
+        approved = False  # Segura a aprovação automática por segurança
+        risk_status = "MODERATE_RISK"
+        recommendation = "MANUAL_REVISION_REQUIRED"  # Vai para a mesa de análise
+        
     else:
-        df_encoded = pd.get_dummies(df_input)
-        X_final = df_encoded.values
-    
-    try:
-        prediction = int(model.predict(X_final)[0])
+        approved = False
+        risk_status = "HIGH_RISK"
+        recommendation = "AUTOMATIC_REFUSAL"
         
-        try:
-            probability = float(model.predict_proba(X_final)[0][1])
-        except:
-            probability = 1.0 if prediction == 1 else 0.0
-            
-        risk_label = "HIGH_RISK" if prediction == 1 else "LOW_RISK"
-        
-        return {
-            "prediction": prediction,
-            "risk_status": risk_label,
-            "inadimplencia_probability": round(probability, 4)
-        }
-    except Exception as e:
-        return {"error": f"Erro na inferência: {str(e)}"}
+    # 4. Retorna o novo contrato da API muito mais maduro
+    return {
+        "approved": approved,
+        "default_probability": round(float(prob_inadimplencia), 4),
+        "risk_grade": risk_status,
+        "action_required": recommendation
+    }
