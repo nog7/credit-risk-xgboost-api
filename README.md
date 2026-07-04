@@ -107,23 +107,23 @@ Para garantir que o modelo XGBoost aprendeu os padrões financeiros reais e miti
 
 ### Resultados dos Cenários de Teste
 
-| Cenário Analisado | Perfil do Payload Enviado | Probabilidade de Calote | Status Binário Inicial (Corte 50%) | Diagnóstico do Modelo |
+| Cenário Analisado | Perfil do Payload Enviado | Probabilidade de Calote | Ação do Sistema (Após Calibração) | Diagnóstico de Engenharia |
 | :--- | :--- | :---: | :---: | :--- |
-| **1. Lobo em Pele de Cordeiro** | Renda altíssima ($850k), casa própria, estabilidade, mas com restrição ativa (`default=Y`) e `Grade G`. | **93.96%** | REPROVADO | **Sucesso.** O modelo não se deixou cegar pela renda alta; o peso do histórico negativo e a nota de risco pesaram mais. |
-| **2. Jovem Alavancado** | Cliente de 21 anos, nota boa (`Grade B`), histórico limpo, mas pedindo empréstimo maior que a renda anual (`comprometimento: 150%`). | **99.87%** | REPROVADO | **Sucesso.** O algoritmo capturou com precisão a barreira matemática do superendividamento. |
-| **3. Perfil Fantasma (Fraude)** | Inconsistência temporal extrema: tempo de emprego e histórico de crédito incompatíveis com a idade. Renda baixa. | **99.29%** | REPROVADO | **Sucesso.** O XGBoost identificou o cruzamento ruidoso das features temporais combinadas ao risco original. |
-| **4. Trabalhador Silencioso** | Cliente jovem, renda modesta ($42k), mora de aluguel, mas com histórico impecável, estável e pedido pequeno (`comprometimento: 7%`). | **56.72%** | REPROVADO | **Ponto de Atenção.** O modelo identificou o risco baixo da operação, mas devido à penalização rigorosa (`scale_pos_weight=3`), reprovou o cliente na zona cinzenta. |
-| **5. Cliente Padrão Ouro** | Idade madura, excelente renda ($145k), imóvel financiado, zero restrições, nota máxima (`Grade A`) e baixo comprometimento ($8\%$). | **4.38%** | APROVADO | **Sucesso Absoluto.** O algoritmo demonstra altíssima convicção para abrir o crédito quando os indicadores de saúde financeira estão alinhados. |
+| **1. Lobo em Pele de Cordeiro** | Renda altíssima ($850k), casa própria, estabilidade, mas com restrição ativa (`default=Y`) e `Grade G`. | **93.96%** | RECUSA AUTOMÁTICA | **Padrão de Risco Confirmado.** O modelo isolou corretamente a renda alta e priorizou o histórico negativo e a nota de crédito. |
+| **2. Jovem Alavancado** | Cliente de 21 anos, nota boa (`Grade B`), histórico limpo, mas pedindo empréstimo maior que a renda anual (`comprometimento: 150%`). | **99.87%** | RECUSA AUTOMÁTICA | **Padrão de Risco Confirmado.** O algoritmo capturou com precisão o risco matemático crítico de superendividamento. |
+| **3. Perfil Fantasma (Fraude)** | Inconsistência temporal extrema: tempo de emprego e histórico de crédito incompatíveis com a idade. Renda baixa. | **99.29%** | RECUSA AUTOMÁTICA | **Padrão de Risco Confirmado.** O XGBoost identificou o ruído nas variáveis temporais combinadas ao baixo score original. |
+| **4. Trabalhador Silencioso** | Cliente jovem, renda modesta ($42k), mora de aluguel, mas com histórico impecável, estável e pedido pequeno (`comprometimento: 7%`). | **56.72%** | REVISÃO MANUAL | **Zona de Fronteira Mapeada.** O perfil equilibrado (baixo comprometimento vs. baixa renda/aluguel) acionou a esteira de auditoria humana por segurança. |
+| **5. Cliente Padrão Ouro** | Idade madura, excelente renda ($145k), imóvel financiado, zero restrições, nota máxima (`Grade A`) e baixo comprometimento ($8\%$). | **4.38%** | APROVAÇÃO AUTOMÁTICA | **Padrão Saudável Confirmado.** O algoritmo demonstra convergência e alta convicção para liberação de crédito limpo. |
 
-### Mudança de Arquitetura: Calibração da Régua de Decisão (Threshold)
+### Mudança de Arquitetura: Política de Decisão Baseada em Threshold Ponderado
 
-O comportamento do **Cenário 4** revelou um "sintoma de rigidez" gerado pelo viés conservador do modelo. Se mantivéssemos o ponto de corte (*threshold*) padrão de **50%** ditado rigidamente pelas bibliotecas de código, a instituição sofreria com um alto **custo de oportunidade**, negando bons clientes com score máximo (`Grade A`) por oscilações pequenas na zona de incerteza.
+A modelagem de risco puramente estatística tende a ser conservadora devido à penalização aplicada no treinamento (`scale_pos_weight=3`)[cite: 1], o que desloca perfis saudáveis de baixa renda (como o **Cenário 4**) para zonas cinzentas de probabilidade. Manter um ponto de corte (*threshold*) fixo e binário em 50% causaria um severo custo de oportunidade para a instituição, rejeitando de forma automatizada clientes com bom comportamento de crédito.
 
-Como na vida real os modelos mais severos (acima de 93%) mostram convicção clara, a lógica de decisão foi desacoplada do modelo e movida para a **camada de código da API (FastAPI)**. Substituímos a decisão binária cega por uma estratégia madura de **Três Zonas de Decisão**:
+Para resolver essa limitação de forma profissional, a arquitetura da solução foi desenhada para separar a **Previsão Estatística** (XGBoost) da **Regra de Decisão de Negócio** (camada da API). Implementou-se uma política de governança baseada em **Três Zonas de Risco**, otimizando a esteira de crédito:
 
-*   🟢 **Zona Verde (Aprovação Automática) \| $\le$ 45%:** O risco é desprezível (como o **Cenário 5** com 4.38%). O crédito é concedido instantaneamente.
-*   🟡 **Zona Amarela (Mesa de Análise / Revisão) \| 45% a 65%:** O cliente possui variáveis saudáveis, mas o modelo detectou ruídos marginais (como o **Cenário 4** com 56.72%). O sistema encaminha o caso para auditoria humana (`MANUAL_REVISION_REQUIRED`), salvando o cliente saudável da rejeição automática.
-*   🔴 **Zona Vermelha (Recusa Automática) \| $>$ 65%:** Casos de convicção clara de risco (**Cenários 1, 2 e 3**). O sistema barra o crédito imediatamente para proteção do caixa.
+*   🟢 **Zona Verde (Aprovação Automática) \| $\le$ 45%:** Operações de altíssima segurança (ex: **Cenário 5** com 4.38%). O crédito é concedido instantaneamente sem fricção.
+*   🟡 **Zona Amarela (Mesa de Análise / Revisão) \| 45% a 65%:** Casos de fronteira onde há indicadores saudáveis misturados a dados marginais (ex: **Cenário 4** com 56.72%). A API suspende a automação e direciona o contrato para auditoria manual (`MANUAL_REVISION_REQUIRED`), salvando o cliente da recusa indevida.
+*   🔴 **Zona Vermelha (Recusa Automática) \| $>$ 65%:** Convicção estatística clara de inadimplência ativa ou fraude (ex: **Cenários 1, 2 e 3**). O sistema barra o avanço da proposta imediatamente para proteção de caixa.
 
 ---
 
