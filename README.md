@@ -63,24 +63,24 @@ O dataset higienizado foi dividido utilizando o método holdout clássico na pro
 *   **Base de Treinamento ($X_{train}$):** 26.059 registros dedicados exclusivamente ao ajuste de pesos e aprendizado do modelo.
 *   **Base de Teste ($X_{test}$):** 6.515 registros totalmente isolados, utilizados apenas na validação final.
 
-> **Divisão Estratificada** Como a base é desbalanceada (apenas 21,81% de casos de inadimplência), aplicou-se a técnica de **estratificação (`stratify=y`)** na quebra do dataset[cite: 2]. Isso forçou o algoritmo a manter exatamente os mesmos 21,81% de proporção de calotes tanto no treino quanto no teste, evitando sub-representação estatística na validação[cite: 2].
+> **Divisão Estratificada:** Como a base é desbalanceada (apenas 21,81% de casos de inadimplência), aplicou-se a técnica de **estratificação (`stratify=y`)** na quebra do dataset. Isso forçou o algoritmo a manter exatamente os mesmos 21,81% de proporção de calotes tanto no treino quanto no teste, evitando sub-representação estatística na validação.
 
 ### Engenharia Integrada com Pipeline Scikit-Learn
-Em vez de aplicar as transformações diretamente na base inteira (um erro comum que gera *data leakage*), foi construído um objeto `Pipeline` unificado contendo duas etapas sequenciais[cite: 2]:
-1.  **`preprocessor` (`ColumnTransformer`):** Responsável por mapear as colunas por tipo de dado, imputar as medianas e normalizar/codificar as 11 variáveis originais, expandindo-as para a matriz esparsa de 26 inputs calculados[cite: 2].
-2.  **`classifier` (`XGBClassifier`):** O estimador do XGBoost propriamente dito, operando com o hiperparâmetro penalizador `scale_pos_weight=3` para ponderar a importância dos erros na classe minoritária[cite: 2].
+Em vez de aplicar as transformações diretamente na base inteira (um erro comum que gera *data leakage*), foi construído um objeto `Pipeline` unificado contendo duas etapas sequenciais:
+1.  **`preprocessor` (`ColumnTransformer`):** Responsável por mapear as colunas por tipo de dado, imputar as medianas e normalizar/codificar as 11 variáveis originais, expandindo-as para a matriz esparsa de 26 inputs calculados.
+2.  **`classifier` (`XGBClassifier`):** O estimador do XGBoost propriamente dito, operando com o hiperparâmetro penalizador `scale_pos_weight=3` para ponderar a importância dos erros na classe minoritária.
 
-O comando `model.fit(X_train, y_train)` disparou todo o processamento de forma encapsulada[cite: 2]. Ao final do ciclo, o pipeline inteiro foi serializado com a biblioteca `joblib`[cite: 2]. É por esse motivo que a nossa API no FastAPI consegue receber dados completamente brutos do usuário e aplicar toda a transformação matemática idêntica ao treino antes de realizar o `predict`[cite: 2].
+O comando `model.fit(X_train, y_train)` disparou todo o processamento de forma encapsulada. Ao final do ciclo, o pipeline inteiro foi serializado com a biblioteca `joblib`. É por esse motivo que a nossa API no FastAPI consegue receber dados completamente brutos do usuário e aplicar toda a transformação matemática idêntica ao treino antes de realizar o `predict`.
 
 ---
 
 ## 5. Avaliação do Modelo (Evaluation & Métricas)
 
-O modelo foi validado utilizando a base de teste correspondente aos 20% isolados (6.515 registros)[cite: 2].
+O modelo foi validado utilizando a base de teste correspondente aos 20% isolados (6.515 registros).
 
 Os resultados obtidos na validação final foram:
-*   **Acurácia Geral:** 92%[cite: 2]
-*   **ROC AUC Score:** 0.9481 (Excelente capacidade de discriminação e separabilidade entre classes)[cite: 2]
+*   **Acurácia Geral:** 92%
+*   **ROC AUC Score:** 0.9481 (Excelente capacidade de discriminação e separabilidade entre classes)
 
 ### Relatório de Classificação Detalhado
 
