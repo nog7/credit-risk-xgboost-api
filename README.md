@@ -101,9 +101,9 @@ Os resultados obtidos na validação final foram:
 ---
 
 
-## 6. Testes de Estresse (Adversarial Testing) & Calibração de Threshold
+## 6. Testes de Estresse & Calibração de Threshold
 
-Para garantir que o modelo XGBoost aprendeu os padrões financeiros reais e mitigar o risco de *overfitting* (decoreba de dados), a aplicação foi submetida a cenários de estresse simulando fraudes, inconsistências severas e perfis de fronteira na zona de incerteza, além de um controle de aprovação ideal.
+Para garantir que o modelo XGBoost aprendeu os padrões financeiros reais e mitigar o risco de *overfitting*, a aplicação foi submetida a cenários de estresse simulando fraudes, inconsistências severas e perfis de fronteira na zona de incerteza, além de um controle de aprovação ideal.
 
 ### Resultados dos Cenários de Teste
 
@@ -115,11 +115,11 @@ Para garantir que o modelo XGBoost aprendeu os padrões financeiros reais e miti
 | **4. Trabalhador Silencioso** | Cliente jovem, renda modesta ($42k), mora de aluguel, mas com histórico impecável, estável e pedido pequeno (`comprometimento: 7%`). | **56.72%** | REVISÃO MANUAL | **Zona de Fronteira Mapeada.** O perfil equilibrado (baixo comprometimento vs. baixa renda/aluguel) acionou a esteira de auditoria humana por segurança. |
 | **5. Cliente Padrão Ouro** | Idade madura, excelente renda ($145k), imóvel financiado, zero restrições, nota máxima (`Grade A`) e baixo comprometimento ($8\%$). | **4.38%** | APROVAÇÃO AUTOMÁTICA | **Padrão Saudável Confirmado.** O algoritmo demonstra convergência e alta convicção para liberação de crédito limpo. |
 
-### Mudança de Arquitetura: Política de Decisão Baseada em Threshold Ponderado
+### Política de Decisão Baseada em Threshold Ponderado
 
 A modelagem de risco puramente estatística tende a ser conservadora devido à penalização aplicada no treinamento (`scale_pos_weight=3`)[cite: 1], o que desloca perfis saudáveis de baixa renda (como o **Cenário 4**) para zonas cinzentas de probabilidade. Manter um ponto de corte (*threshold*) fixo e binário em 50% causaria um severo custo de oportunidade para a instituição, rejeitando de forma automatizada clientes com bom comportamento de crédito.
 
-Para resolver essa limitação de forma profissional, a arquitetura da solução foi desenhada para separar a **Previsão Estatística** (XGBoost) da **Regra de Decisão de Negócio** (camada da API). Implementou-se uma política de governança baseada em **Três Zonas de Risco**, otimizando a esteira de crédito:
+Para resolver essa limitação a solução foi desenhada para separar a **Previsão Estatística** (XGBoost) da **Regra de Decisão de Negócio** (camada da API). Implementou-se uma política de governança baseada em **Três Zonas de Risco**, otimizando a esteira de crédito:
 
 *   🟢 **Zona Verde (Aprovação Automática) \| $\le$ 45%:** Operações de altíssima segurança (ex: **Cenário 5** com 4.38%). O crédito é concedido instantaneamente sem fricção.
 *   🟡 **Zona Amarela (Mesa de Análise / Revisão) \| 45% a 65%:** Casos de fronteira onde há indicadores saudáveis misturados a dados marginais (ex: **Cenário 4** com 56.72%). A API suspende a automação e direciona o contrato para auditoria manual (`MANUAL_REVISION_REQUIRED`), salvando o cliente da recusa indevida.
