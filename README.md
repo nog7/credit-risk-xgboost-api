@@ -98,7 +98,9 @@ Os resultados obtidos na validação final foram:
 1 (Inadimplente)   0.85      0.79      0.82      1421
 ```
 
-### Interpretabilidade do Modelo (XAI) & Feature Importance
+### Interpretabilidade do Modelo (XAI)
+
+#### Feature Importance
 
 Para reduzir o efeito de **"caixa-preta"** característico de modelos baseados em árvores (*Gradient Boosting*), foi realizada uma análise de **Feature Importance** utilizando o critério de **Ganho Relativo (*Gain*)**. Essa métrica quantifica a contribuição de cada variável para a redução do erro do modelo ao longo de todas as divisões das árvores.
 
@@ -116,6 +118,18 @@ Os três principais fatores que influenciam as decisões do modelo são:
 A hierarquia das variáveis demonstra que o modelo foi capaz de aprender **relações não lineares complexas**, priorizando aspectos estruturais da saúde financeira do cliente em vez de depender apenas de métricas isoladas. Essa análise aumenta a transparência do processo decisório e fornece evidências de que as previsões estão fundamentadas em fatores estatisticamente relevantes.
 
 ![Feature importance](notebooks/feature_importance.png)
+
+#### SHAP Summary Plot (Impacto e Direção do Risco)
+
+Enquanto o gráfico de ganho mostra quais variáveis organizam melhor a estrutura das árvores, os **SHAP Values** revelam a **magnitude acumulada e a direção do impacto** de cada atributo na decisão final aplicada aos clientes.
+
+![SHAP Values](notebooks/shap.png)
+
+A análise do SHAP traz revelações sobre o comportamento não linear do modelo:
+
+- **A Supremacia da Renda (`person_income`):** Embora o aluguel (`RENT`) seja o filtro inicial mais eficiente para o algoritmo, a renda anual do cliente é o fator que causa os impactos mais extremos. Níveis muito baixos de renda (pontos azuis) esticam o risco de inadimplência de forma violenta para a extrema direita do gráfico, sendo o principal fator isolado de reprovação.
+- **O Efeito Interruptor do Aluguel (`RENT` vs `OWN`):** O SHAP desmistifica o vínculo de moradia. O fato de morar de aluguel (`RENT` em vermelho) atua como um penalizador constante, empurrando o score de risco uniformemente para a direita. Em contrapartida, possuir casa própria (`OWN` em vermelho) dispara uma linha maciça para a extrema esquerda, funcionando como o maior atenuador de risco do modelo (passaporte para aprovação automática).
+- **Comprometimento de Renda (`loan_percent_income`):** Fica claro visualmente que valores altos (pontos vermelhos) asfixiam o orçamento e deslocam o cliente diretamente para a zona de inadimplência (direita).
 
 ---
 
