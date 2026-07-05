@@ -136,7 +136,7 @@ Para garantir que o modelo XGBoost aprendeu os padrões financeiros reais e miti
 
 ### Política de Decisão Baseada em Threshold Ponderado
 
-A modelagem de risco puramente estatística tende a ser conservadora devido à penalização aplicada no treinamento (`scale_pos_weight=3`)[cite: 1], o que desloca perfis saudáveis de baixa renda (como o **Cenário 4**) para zonas cinzentas de probabilidade. Manter um ponto de corte (*threshold*) fixo e binário em 50% causaria um severo custo de oportunidade para a instituição, rejeitando de forma automatizada clientes com bom comportamento de crédito.
+A modelagem de risco puramente estatística tende a ser conservadora devido à penalização aplicada no treinamento (`scale_pos_weight=3`), o que desloca perfis saudáveis de baixa renda (como o **Cenário 4**) para zonas cinzentas de probabilidade. Manter um ponto de corte (*threshold*) fixo e binário em 50% causaria um severo custo de oportunidade para a instituição, rejeitando de forma automatizada clientes com bom comportamento de crédito.
 
 Para resolver essa limitação a solução foi desenhada para separar a **Previsão Estatística** (XGBoost) da **Regra de Decisão de Negócio** (camada da API). Implementou-se uma política de governança baseada em **Três Zonas de Risco**, otimizando a esteira de crédito:
 
@@ -146,7 +146,7 @@ Para resolver essa limitação a solução foi desenhada para separar a **Previs
 
 ---
 
-## 7. Arquitetura da Solução & Engenharia de Produção
+## 7. Arquitetura da Solução
 
 - **Treinamento:** O modelo e todo o pipeline de pré-processamento (`ColumnTransformer`) foram exportados em conjunto, de forma serializada, em um único arquivo `.joblib`.
 
@@ -169,7 +169,7 @@ A API está implantada publicamente no Google Cloud Run e pode ser acessada dire
 1. Acesse o link da API acima.
 2. Clique sobre o endpoint **`POST /predict`**.
 3. Clique no botão **Try it out** no canto superior direito do bloco.
-4. Altere os valores do JSON de exemplo ou use o payload de teste abaixo.
+4. Altere os valores do JSON de exemplo ou use o payload de teste já preenchido.
 5. Clique no botão azul **Execute** e veja o retorno do modelo instantaneamente na seção *Response body*.
 
 ### Opção 2: Consumindo a API via Terminal (cURL)
@@ -222,6 +222,7 @@ curl -X 'POST' \
 {
   "approved": false,
   "default_probability": 0.9994,
-  "risk_grade": "HIGH_RISK"
+  "risk_grade": "HIGH_RISK",
+  "action_required": "AUTOMATIC_REFUSAL"
 }
 ```
