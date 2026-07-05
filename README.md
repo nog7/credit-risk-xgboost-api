@@ -125,10 +125,12 @@ Enquanto o gráfico de ganho mostra quais variáveis organizam melhor a estrutur
 
 ![SHAP Values](notebooks/shap.png)
 
-A análise do SHAP traz revelações sobre o comportamento não linear do modelo:
+A análise do SHAP traz revelações sobre o comportamento do modelo:
 
-- **A Supremacia da Renda (`person_income`):** Embora o aluguel (`RENT`) seja o filtro inicial mais eficiente para o algoritmo, a renda anual do cliente é o fator que causa os impactos mais extremos. Níveis muito baixos de renda (pontos azuis) esticam o risco de inadimplência de forma violenta para a extrema direita do gráfico, sendo o principal fator isolado de reprovação.
-- **O Efeito Interruptor do Aluguel (`RENT` vs `OWN`):** O SHAP desmistifica o vínculo de moradia. O fato de morar de aluguel (`RENT` em vermelho) atua como um penalizador constante, empurrando o score de risco uniformemente para a direita. Em contrapartida, possuir casa própria (`OWN` em vermelho) dispara uma linha maciça para a extrema esquerda, funcionando como o maior atenuador de risco do modelo (passaporte para aprovação automática).
+- **A Supremacia da Renda (`person_income`):** Embora o aluguel (`RENT`) seja o filtro inicial mais eficiente para o algoritmo na estrutura das árvores, a renda anual é o fator que causa os impactos mais extremos no cliente. Níveis muito baixos de renda (pontos azuis) esticam o risco de inadimplência de forma violenta para a extrema direita (atingindo valor histórico próximo a 10), sendo o principal fator isolado de reprovação.
+- **A Assimetria do Vínculo de Moradia (`RENT` vs `OWN`):** O gráfico desmistifica a ideia de que o aluguel e a casa própria possuem pesos opostos equivalentes. 
+  - O atributo **`RENT`** atua como um interruptor simétrico e de baixo impacto (variando entre -3.0 e +2.5): estar no aluguel aumenta o risco na mesma proporção em que não estar o reduz.
+  - O atributo **`OWN`**, por outro lado, atua como um **gatilho unilateral de bonificação**. Não ter casa própria (`OWN` em azul) tem impacto praticamente nulo (próximo a zero). Contudo, ter casa própria (`OWN` em vermelho) dispara uma cauda longa e isolada que empurra o score drasticamente para a esquerda (próximo a -7), funcionando como o maior fator isolado de atenuação de risco do modelo.
 - **Comprometimento de Renda (`loan_percent_income`):** Fica claro visualmente que valores altos (pontos vermelhos) asfixiam o orçamento e deslocam o cliente diretamente para a zona de inadimplência (direita).
 
 ---
