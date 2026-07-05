@@ -123,7 +123,7 @@ A hierarquia das variáveis demonstra que o modelo foi capaz de aprender **rela�
 
 Enquanto o gráfico de ganho mostra quais variáveis organizam melhor a estrutura das árvores, os **SHAP Values** revelam a **magnitude acumulada e a direção do impacto** de cada atributo na decisão final aplicada aos clientes.
 
-
+![SHAP Values](notebooks/shap.png)
 
 A análise do SHAP traz revelações sobre o comportamento não linear do modelo:
 
