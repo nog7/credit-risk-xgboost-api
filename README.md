@@ -177,7 +177,7 @@ Você pode disparar uma requisição de teste de qualquer terminal rodando o com
 
 ```bash
 curl -X 'POST' \
-  '[https://credit-risk-api-545386638841.us-central1.run.app/predict](https://credit-risk-api-545386638841.us-central1.run.app/predict)' \
+  'https://credit-risk-api-545386638841.us-central1.run.app/predict' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
